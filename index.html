@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aria Lombardia — Sonificazione ARPA</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<style>
+:root{--bg:#0a0e1a;--surface:#111827;--surface2:#1a2235;--accent:#7c3aed;--accent2:#06b6d4;--text:#e2e8f0;--muted:#64748b;--border:#1e293b}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+header{padding:.6rem 1.5rem;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:1rem;flex-shrink:0}
+header h1{font-size:1.1rem;font-weight:700;background:linear-gradient(135deg,#a78bfa,#06b6d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-0.02em}
+header p{font-size:.7rem;color:var(--muted);margin-top:1px}
+.play-btn{background:linear-gradient(135deg,var(--accent),#a855f7);border:none;color:#fff;padding:.4rem 1.2rem;border-radius:999px;font-size:.8rem;font-weight:600;cursor:pointer;transition:opacity .2s,transform .1s;display:flex;align-items:center;gap:.4rem}
+.play-btn:hover{opacity:.9;transform:scale(1.03)}
+.play-btn.playing{background:linear-gradient(135deg,#ef4444,#f97316)}
+.eval-btn{background:linear-gradient(135deg,#06b6d4,#3b82f6);border:none;color:#fff;padding:.4rem 1.2rem;border-radius:999px;font-size:.8rem;font-weight:600;cursor:pointer;transition:opacity .2s,transform .1s;display:flex;align-items:center;gap:.4rem}
+.eval-btn:hover{opacity:.9;transform:scale(1.03)}
+.hdr-btns{margin-left:auto;display:flex;gap:.5rem}
+.main{flex:1;display:grid;grid-template-columns:1fr 280px;grid-template-rows:1fr 130px;gap:0;overflow:hidden}
+#map{grid-row:1;grid-column:1;width:100%;height:100%}
+.sidebar{grid-row:1/3;grid-column:2;background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;padding:.8rem;gap:.6rem}
+.bottom-panel{grid-row:2;grid-column:1;background:var(--surface);border-top:1px solid var(--border);display:flex;align-items:center;gap:1rem;padding:.6rem 1rem;overflow:hidden}
+.pollutant-list{flex:1;display:grid;grid-template-columns:repeat(5,1fr);gap:.5rem;align-content:center}
+.pollutant-card{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:.5rem;display:flex;flex-direction:column;align-items:center;gap:.2rem;transition:border-color .3s,transform .15s;cursor:pointer}
+.pollutant-card:hover{border-color:var(--muted);transform:scale(1.03)}
+.pollutant-card.active{border-color:var(--accent)}
+.pollutant-card.solo{border-color:var(--accent2);box-shadow:0 0 10px rgba(6,182,212,.4)}
+.p-vowel{font-size:1.5rem;font-weight:800;line-height:1}
+.p-name{font-size:.65rem;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.06em}
+.p-mnemonic{font-size:.55rem;color:var(--muted);font-style:italic;line-height:1.1;text-align:center;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.p-mnemonic em{font-style:normal;font-weight:800;color:var(--text);text-decoration:underline;text-underline-offset:2px}
+.p-value{font-size:.9rem;font-weight:700}
+.p-unit{font-size:.6rem;color:var(--muted)}
+.p-bar-wrap{width:100%;height:3px;background:var(--border);border-radius:2px;overflow:hidden}
+.p-bar{height:100%;border-radius:2px;transition:width .5s ease}
+.section-title{font-size:.7rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:700;margin-bottom:.3rem}
+.station-info{background:var(--surface2);border-radius:10px;padding:.8rem;font-size:.82rem}
+.station-name{font-weight:700;font-size:.95rem;margin-bottom:.2rem}
+.station-coords{color:var(--muted);font-size:.72rem}
+.audio-controls{display:flex;flex-direction:column;gap:.5rem}
+.control-row{display:flex;align-items:center;justify-content:space-between;font-size:.8rem}
+.slider-wrap{display:flex;align-items:center;gap:.5rem;flex:1;margin-left:.5rem}
+input[type=range]{-webkit-appearance:none;width:100%;height:3px;background:var(--border);border-radius:2px;outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;background:var(--accent);border-radius:50%;cursor:pointer}
+.toggle-row{display:flex;align-items:center;justify-content:space-between;font-size:.8rem;padding:.3rem 0}
+.toggle{display:flex;gap:.3rem}
+.toggle-btn{padding:.2rem .6rem;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:.72rem;cursor:pointer;transition:all .2s}
+.toggle-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.legend{display:flex;flex-direction:column;gap:.4rem}
+.legend-item{display:flex;align-items:center;gap:.5rem;font-size:.75rem}
+.legend-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.legend-mn{font-size:.65rem;color:var(--muted);font-style:italic;margin-left:auto}
+.legend-mn em{font-style:normal;font-weight:700;color:var(--text)}
+.status-bar{display:flex;align-items:center;gap:.5rem;font-size:.75rem;color:var(--muted)}
+.status-dot{width:6px;height:6px;border-radius:50%;background:#22c55e;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.status-dot.loading{background:#f59e0b}
+.status-dot.error{background:#ef4444;animation:none}
+.custom-marker{width:12px;height:12px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 8px rgba(0,0,0,.5)}
+.selected-marker{width:16px;height:16px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 12px rgba(124,58,237,.8);animation:markerPulse 1.5s infinite}
+@keyframes markerPulse{0%,100%{box-shadow:0 0 12px rgba(124,58,237,.8)}50%{box-shadow:0 0 20px rgba(124,58,237,1),0 0 30px rgba(124,58,237,.4)}}
+/* Popup glifo sulla mappa */
+.glyph-popup .leaflet-popup-content-wrapper{background:var(--surface);border:1px solid var(--border);border-radius:12px;color:var(--text);box-shadow:0 8px 32px rgba(0,0,0,.6)}
+.glyph-popup .leaflet-popup-tip{background:var(--surface);border:1px solid var(--border)}
+.glyph-popup .leaflet-popup-content{margin:10px 12px;min-width:160px}
+.popup-title{font-weight:700;font-size:.85rem;margin-bottom:6px;text-align:center}
+.popup-canvas-wrap{display:flex;justify-content:center;margin-bottom:6px}
+.popup-vals{display:flex;flex-direction:column;gap:3px}
+.popup-row{display:flex;align-items:center;gap:6px;font-size:.72rem;cursor:pointer;padding:2px 4px;border-radius:4px;transition:background .15s}
+.popup-row:hover{background:rgba(255,255,255,.06)}
+.popup-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.popup-vowel{font-weight:700;width:14px;text-align:center}
+.popup-val{margin-left:auto;font-weight:600}
+/* Overlay valutazione */
+.eval-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:2000;display:flex;align-items:center;justify-content:center}
+.eval-box{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:2rem;max-width:520px;width:90%;max-height:90vh;overflow-y:auto;box-shadow:0 16px 64px rgba(0,0,0,.5)}
+.eval-box h2{font-size:1.2rem;margin-bottom:.5rem;background:linear-gradient(135deg,#06b6d4,#3b82f6);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.eval-box p{font-size:.85rem;color:var(--muted);margin-bottom:1rem;line-height:1.4}
+.eval-progress{font-size:.75rem;color:var(--muted);margin-bottom:.8rem}
+.eval-choices{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:1rem}
+.eval-choice{padding:.6rem;border:2px solid var(--border);border-radius:10px;background:var(--surface2);cursor:pointer;text-align:center;transition:all .2s;font-size:.85rem;font-weight:600}
+.eval-choice:hover{border-color:var(--muted);transform:scale(1.02)}
+.eval-choice.correct{border-color:#22c55e;background:rgba(34,197,94,.15)}
+.eval-choice.wrong{border-color:#ef4444;background:rgba(239,68,68,.15)}
+.eval-choice .ev-vowel{font-size:1.3rem;font-weight:800;display:block;margin-bottom:2px}
+.eval-choice .ev-name{font-size:.7rem;color:var(--muted);font-weight:400}
+.eval-replay{padding:.4rem 1rem;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--text);font-size:.8rem;cursor:pointer;transition:all .2s}
+.eval-replay:hover{border-color:var(--accent);color:var(--accent)}
+.eval-start-btn,.eval-close-btn{padding:.5rem 1.5rem;border-radius:999px;border:none;font-size:.85rem;font-weight:600;cursor:pointer;transition:all .2s}
+.eval-start-btn{background:linear-gradient(135deg,#06b6d4,#3b82f6);color:#fff}
+.eval-start-btn:hover{opacity:.9;transform:scale(1.03)}
+.eval-close-btn{background:transparent;border:1px solid var(--border);color:var(--muted);margin-left:.5rem}
+.eval-close-btn:hover{color:var(--text);border-color:var(--muted)}
+.eval-feedback{font-size:.85rem;font-weight:600;text-align:center;padding:.5rem;border-radius:8px;margin-bottom:.8rem}
+.eval-feedback.ok{color:#22c55e;background:rgba(34,197,94,.1)}
+.eval-feedback.ko{color:#ef4444;background:rgba(239,68,68,.1)}
+/* Matrice di confusione */
+.conf-matrix{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.75rem}
+.conf-matrix th,.conf-matrix td{padding:4px 6px;text-align:center;border:1px solid var(--border)}
+.conf-matrix th{background:var(--surface2);color:var(--muted);font-weight:600}
+.conf-matrix td{font-weight:600}
+.conf-matrix .diag{background:rgba(34,197,94,.15);color:#22c55e}
+.conf-matrix .off{color:var(--muted)}
+.conf-matrix .err{background:rgba(239,68,68,.1);color:#ef4444}
+.eval-stats{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin:1rem 0}
+.eval-stat{background:var(--surface2);border-radius:8px;padding:.6rem;text-align:center}
+.eval-stat .val{font-size:1.4rem;font-weight:800;background:linear-gradient(135deg,#06b6d4,#3b82f6);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.eval-stat .lbl{font-size:.7rem;color:var(--muted);margin-top:2px}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>🌫️ Aria Lombardia — Sonificazione</h1>
+    <p>Dati ARPA Lombardia · Seleziona una stazione per ascoltare</p>
+  </div>
+  <div class="hdr-btns">
+    <button class="eval-btn" onclick="openEval()">🎓 Valutazione</button>
+    <button class="play-btn" id="playBtn" onclick="toggleSound()">
+      <span id="playIcon">▶</span> <span id="playText">Ascolta</span>
+    </button>
+  </div>
+</header>
+<div class="main">
+  <div id="map"><div style="display:flex;align-items:center;justify-content:center;height:100%;color:#64748b;font-size:.9rem">Caricamento mappa...</div></div>
+  <div class="sidebar">
+    <div>
+      <div class="section-title">Stazione selezionata</div>
+      <div class="station-info" id="stationInfo">
+        <div class="station-name">Clicca sulla mappa</div>
+        <div class="station-coords">Nessuna stazione selezionata</div>
+      </div>
+    </div>
+    <div>
+      <div class="section-title">Modalità audio</div>
+      <div class="audio-controls">
+        <div class="toggle-row">
+          <span>Riproduzione</span>
+          <div class="toggle">
+            <button class="toggle-btn active" id="modeChord" onclick="setMode('chord')">Accordo</button>
+            <button class="toggle-btn" id="modeSeq" onclick="setMode('seq')">Sequenza</button>
+          </div>
+        </div>
+        <div class="control-row">
+          <span>Volume</span>
+          <div class="slider-wrap">
+            <input type="range" id="volSlider" min="0" max="1" step="0.05" value="0.5" oninput="setVolume(this.value)">
+          </div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="section-title">Legenda vocali (A-E-I-U-O)</div>
+      <div class="legend" id="vowelLegend"></div>
+    </div>
+    <div>
+      <div class="section-title">Legenda qualità</div>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#22c55e"></div> Buona (0–50%)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div> Moderata (50–75%)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div> Alta (&gt;75%)</div>
+      </div>
+    </div>
+    <div style="margin-top:auto">
+      <div class="status-bar">
+        <div class="status-dot" id="statusDot"></div>
+        <span id="statusText">82 stazioni ARPA caricate</span>
+      </div>
+    </div>
+  </div>
+  <div class="bottom-panel">
+    <div class="pollutant-list" id="pollutantList"></div>
+  </div>
+</div>
+<script>
+// === CONFIGURAZIONE — ORDINE A-E-I-U-O (percorso circolare F1-F2) ===
+// Mnemonici: biossido di Azoto, piEmmedieci, partIcelle sospese, CO→U, Ozono
+const POLLUTANTS=[
+  {id:'NO2',name:'NO₂',vowel:'A',color:'#f87171',max:80,unit:'µg/m³',freq:220,sn:'Biossido di Azoto',mn:'biossido di <em>A</em>zoto'},
+  {id:'PM10',name:'PM10',vowel:'E',color:'#fb923c',max:60,unit:'µg/m³',freq:330,sn:'PM10 (SM2005)',mn:'pi<em>E</em>mmedieci'},
+  {id:'PM25',name:'PM2.5',vowel:'I',color:'#38bdf8',max:35,unit:'µg/m³',freq:440,sn:'Particelle sospese PM2.5',mn:'part<em>I</em>celle sospese'},
+  {id:'CO',name:'CO',vowel:'U',color:'#4ade80',max:4,unit:'mg/m³',freq:550,sn:'Monossido di Carbonio',mn:'monossido di Carbonio'},
+  {id:'O3',name:'O₃',vowel:'O',color:'#a78bfa',max:120,unit:'µg/m³',freq:660,sn:'Ozono',mn:'<em>O</em>zono'},
+];
+
+const FORMANTS={
+  A:[{f:730,bw:70},{f:1090,bw:90},{f:2440,bw:130},{f:3400,bw:180},{f:4500,bw:220}],
+  E:[{f:530,bw:65},{f:1840,bw:100},{f:2480,bw:130},{f:3500,bw:180},{f:4500,bw:220}],
+  I:[{f:270,bw:55},{f:2290,bw:110},{f:3010,bw:140},{f:3700,bw:180},{f:4500,bw:220}],
+  O:[{f:570,bw:65},{f:840,bw:80},{f:2410,bw:130},{f:3400,bw:180},{f:4500,bw:220}],
+  U:[{f:300,bw:55},{f:870,bw:80},{f:2100,bw:140},{f:3400,bw:200},{f:4500,bw:250}],
+};
+
+const PROV_PROFILES={
+  MI:{NO2:.72,PM10:.63,O3:.32,PM25:.68,CO:.50},MB:{NO2:.68,PM10:.60,O3:.35,PM25:.63,CO:.48},
+  BG:{NO2:.58,PM10:.58,O3:.42,PM25:.58,CO:.42},BS:{NO2:.62,PM10:.60,O3:.38,PM25:.60,CO:.45},
+  CO:{NO2:.42,PM10:.40,O3:.52,PM25:.38,CO:.32},CR:{NO2:.53,PM10:.68,O3:.45,PM25:.66,CO:.40},
+  LC:{NO2:.38,PM10:.36,O3:.55,PM25:.34,CO:.28},LO:{NO2:.48,PM10:.56,O3:.43,PM25:.54,CO:.36},
+  MN:{NO2:.55,PM10:.70,O3:.48,PM25:.68,CO:.42},PV:{NO2:.50,PM10:.58,O3:.44,PM25:.56,CO:.38},
+  SO:{NO2:.18,PM10:.22,O3:.62,PM25:.20,CO:.15},VA:{NO2:.45,PM10:.43,O3:.50,PM25:.40,CO:.34},
+  RO:{NO2:.40,PM10:.45,O3:.50,PM25:.42,CO:.30},
+};
+
+// === 82 STAZIONI ARPA LOMBARDIA ===
+const S=[
+{i:'501',n:'Milano v.Marche',la:45.49632,lo:9.19093,p:'MI',c:'Milano',h:'NO2 PM25 CO'},
+{i:'504',n:'Sesto S.G. v.Cesare da Sesto',la:45.53477,lo:9.23611,p:'MI',c:'Sesto San Giovanni',h:'NO2 CO'},
+{i:'517',n:'Turbigo',la:45.52656,lo:8.73650,p:'MI',c:'Turbigo',h:'NO2'},
+{i:'528',n:'Milano Verziere',la:45.46335,lo:9.19533,p:'MI',c:'Milano',h:'NO2 O3'},
+{i:'529',n:'Cinisello Balsamo v.Lincoln',la:45.55233,lo:9.22777,p:'MI',c:'Cinisello Balsamo',h:'NO2'},
+{i:'531',n:'Pioltello Limito',la:45.48363,lo:9.32736,p:'MI',c:'Pioltello',h:'NO2 PM10 O3'},
+{i:'542',n:'Meda v.Gagarin',la:45.66099,lo:9.16023,p:'MB',c:'Meda',h:'NO2 PM10'},
+{i:'544',n:'Cormano v.Edison',la:45.54760,lo:9.16698,p:'MI',c:'Cormano',h:'NO2 O3'},
+{i:'545',n:'Motta Visconti',la:45.28196,lo:8.98858,p:'MI',c:'Motta Visconti',h:'NO2 O3'},
+{i:'546',n:'Magenta v.Turati',la:45.46242,lo:8.88021,p:'MI',c:'Magenta',h:'PM10'},
+{i:'548',n:'Milano v.Senato',la:45.47050,lo:9.19746,p:'MI',c:'Milano',h:'NO2 PM10 PM25 O3'},
+{i:'551',n:'Arconate v.De Gasperi',la:45.54852,lo:8.84733,p:'MI',c:'Arconate',h:'NO2'},
+{i:'554',n:'Saronno v.Santuario',la:45.62736,lo:9.02640,p:'VA',c:'Saronno',h:'NO2 PM25'},
+{i:'558',n:'Busto Arsizio Accam',la:45.58289,lo:8.84217,p:'VA',c:'Busto Arsizio',h:'NO2'},
+{i:'560',n:'Varese v.Copelli',la:45.81697,lo:8.82025,p:'VA',c:'Varese',h:'NO2 PM25 O3 CO'},
+{i:'561',n:'Como v.Cattaneo',la:45.81504,lo:9.06698,p:'CO',c:'Como',h:'NO2 PM25 O3 CO'},
+{i:'565',n:'Cantù v.Meucci',la:45.73084,lo:9.12574,p:'CO',c:'Cantù',h:'NO2'},
+{i:'569',n:'Sondrio v.Mazzini',la:46.16797,lo:9.87015,p:'SO',c:'Sondrio',h:'NO2 PM10'},
+{i:'571',n:'Bormio v.Monte Braulio',la:46.46952,lo:10.37543,p:'SO',c:'Bormio',h:'NO2 PM10 PM25 CO'},
+{i:'574',n:'Lecco v.Amendola',la:45.85020,lo:9.39558,p:'LC',c:'Lecco',h:'NO2 CO'},
+{i:'576',n:'Merate v.Madonna di Loreto',la:45.69796,lo:9.40619,p:'LC',c:'Merate',h:'NO2 PM25'},
+{i:'583',n:'Bergamo v.Meucci',la:45.69104,lo:9.64366,p:'BG',c:'Bergamo',h:'PM10'},
+{i:'584',n:'Bergamo v.Garibaldi',la:45.69569,lo:9.66126,p:'BG',c:'Bergamo',h:'NO2 PM10 CO'},
+{i:'592',n:'Treviglio p.zza Insurrezione',la:45.51934,lo:9.59202,p:'BG',c:'Treviglio',h:'NO2 PM25 CO'},
+{i:'595',n:'Filago v.Don Milani',la:45.63387,lo:9.55610,p:'BG',c:'Filago',h:'NO2 PM10'},
+{i:'596',n:'Osio Sotto',la:45.62056,lo:9.61174,p:'BG',c:'Osio Sotto',h:'NO2'},
+{i:'598',n:'San Rocco al Porto',la:45.08199,lo:9.70079,p:'LO',c:'San Rocco al Porto',h:'NO2 PM10'},
+{i:'600',n:'Lodi v.Vignati',la:45.30602,lo:9.48528,p:'LO',c:'Lodi',h:'NO2'},
+{i:'604',n:'Tavazzano',la:45.33036,lo:9.41464,p:'LO',c:'Tavazzano con Villavesco',h:'NO2 PM10'},
+{i:'606',n:'San Giuliano Milanese',la:45.39620,lo:9.28270,p:'MI',c:'San Giuliano Milanese',h:'NO2 CO'},
+{i:'608',n:'Codogno v.Trento',la:45.15938,lo:9.69815,p:'LO',c:'Codogno',h:'NO2'},
+{i:'609',n:"Casirate d'Adda",la:45.49823,lo:9.55624,p:'BG',c:"Casirate d'Adda",h:'NO2 PM10 O3'},
+{i:'626',n:"Corte de' Cortesi",la:45.27849,lo:10.00621,p:'CR',c:"Corte de' Cortesi",h:'NO2 O3'},
+{i:'627',n:'Cremona P.zza Cadorna',la:45.13195,lo:10.01574,p:'CR',c:'Cremona',h:'PM10'},
+{i:'629',n:'Crema v.XI Febbraio',la:45.36631,lo:9.70395,p:'CR',c:'Crema',h:'NO2 PM10 O3'},
+{i:'633',n:'Soresina v.Landriani',la:45.28398,lo:9.86340,p:'CR',c:'Soresina',h:'NO2 PM10 PM25'},
+{i:'642',n:'Pavia v.Folperti',la:45.19468,lo:9.16465,p:'PV',c:'Pavia',h:'NO2 O3'},
+{i:'643',n:'Pavia p.zza Minerva',la:45.18634,lo:9.14668,p:'PV',c:'Pavia',h:'NO2 PM10'},
+{i:'649',n:'Brescia v.Broletto',la:45.54006,lo:10.22282,p:'BS',c:'Brescia',h:'NO2 PM25'},
+{i:'652',n:'Brescia v.Turati',la:45.53954,lo:10.23179,p:'BS',c:'Brescia',h:'CO'},
+{i:'656',n:'Gambara v.Parma',la:45.24955,lo:10.29913,p:'BS',c:'Gambara',h:'NO2 O3'},
+{i:'657',n:'Lonato del Garda',la:45.46376,lo:10.48078,p:'BS',c:'Lonato del Garda',h:'NO2'},
+{i:'659',n:'Odolo v.Praes',la:45.64605,lo:10.38930,p:'BS',c:'Odolo',h:'NO2 O3'},
+{i:'661',n:'Rezzato v.De Gasperi',la:45.51571,lo:10.33624,p:'BS',c:'Rezzato',h:'NO2'},
+{i:'663',n:'Mantova v.Ariosto',la:45.14527,lo:10.80333,p:'MN',c:'Mantova',h:'NO2 PM10'},
+{i:'664',n:'Mantova p.zza Gramsci',la:45.15175,lo:10.78142,p:'MN',c:'Mantova',h:'NO2 PM10'},
+{i:'665',n:'Viadana v.Cavalli',la:44.92470,lo:10.51750,p:'MN',c:'Viadana',h:'O3'},
+{i:'669',n:'Brescia Villaggio Sereno',la:45.51306,lo:10.19191,p:'BS',c:'Brescia',h:'NO2 PM10 PM25'},
+{i:'670',n:'Mantova S.Agnese',la:45.16058,lo:10.79557,p:'MN',c:'Mantova',h:'NO2 O3'},
+{i:'671',n:'Mantova Tridolino',la:45.15333,lo:10.85927,p:'MN',c:'Mantova',h:'PM10'},
+{i:'672',n:'Cornale v.Libertà',la:45.04009,lo:8.91416,p:'PV',c:'Cornale',h:'NO2 PM25 O3 CO'},
+{i:'673',n:'Voghera v.Pozzoni',la:44.99955,lo:9.00845,p:'PV',c:'Voghera',h:'NO2 PM10 CO'},
+{i:'674',n:'Monza v.Machiavelli',la:45.57412,lo:9.26381,p:'MB',c:'Monza',h:'NO2 PM10 PM25 O3'},
+{i:'677',n:'Cremona Via Fatebenefratelli',la:45.14254,lo:10.04385,p:'CR',c:'Cremona',h:'NO2 PM10'},
+{i:'679',n:'Valmadrera v.Pozzi',la:45.84221,lo:9.35166,p:'LC',c:'Valmadrera',h:'NO2 PM10 O3 CO'},
+{i:'681',n:'Moggio Loc. Penscei',la:45.91279,lo:9.49754,p:'LC',c:'Moggio',h:'PM10 PM25'},
+{i:'683',n:"Cassano d'Adda",la:45.52647,lo:9.51599,p:'MI',c:"Cassano d'Adda",h:'NO2 PM10 PM25'},
+{i:'685',n:"Calusco d'Adda",la:45.69044,lo:9.48426,p:'BG',c:"Calusco d'Adda",h:'NO2 PM10 PM25'},
+{i:'687',n:'Ferno v.Di Dio',la:45.61925,lo:8.75698,p:'VA',c:'Ferno',h:'NO2 O3'},
+{i:'690',n:'Mezzana Bigli',la:45.06967,lo:8.86890,p:'PV',c:'Mezzana Bigli',h:'PM10'},
+{i:'691',n:'Ferrera Erbognone AGIP',la:45.11083,lo:8.86876,p:'PV',c:'Ferrera Erbognone',h:'NO2'},
+{i:'693',n:"Sannazzaro de' Burgondi",la:45.10277,lo:8.90419,p:'PV',c:"Sannazzaro de' Burgondi",h:'NO2 PM25'},
+{i:'695',n:'Ponti sul Mincio',la:45.41278,lo:10.68336,p:'MN',c:'Ponti sul Mincio',h:'NO2 PM10 PM25 CO'},
+{i:'697',n:'Borgofranco sul Po',la:45.04650,lo:11.18095,p:'MN',c:'Borgofranco sul Po',h:'NO2 PM10'},
+{i:'700',n:'Melara',la:45.06321,lo:11.20922,p:'RO',c:'Melara',h:'CO'},
+{i:'703',n:'Schivenoglia',la:45.01688,lo:11.07610,p:'MN',c:'Schivenoglia',h:'PM10 CO'},
+{i:'705',n:'Milano Pascal Città Studi',la:45.47835,lo:9.23167,p:'MI',c:'Milano',h:'NO2 PM10 PM25 O3'},
+{i:'706',n:'Lecco v.Sora',la:45.86375,lo:9.39995,p:'LC',c:'Lecco',h:'PM25 O3'},
+{i:'708',n:'Parona v.della Miseria',la:45.28194,lo:8.75434,p:'PV',c:'Parona',h:'NO2 PM10 PM25'},
+{i:'709',n:'Vigevano v.Valletta',la:45.30361,lo:8.84481,p:'PV',c:'Vigevano',h:'NO2'},
+{i:'1264',n:'Sondrio v.Paribelli',la:46.16786,lo:9.87921,p:'SO',c:'Sondrio',h:'O3'},
+{i:'1265',n:'Lodi S.Alberto',la:45.30279,lo:9.49529,p:'LO',c:'Lodi',h:'PM10'},
+{i:'1266',n:'Bertonico v.Moro',la:45.23350,lo:9.66626,p:'LO',c:'Bertonico',h:'NO2 O3'},
+{i:'1269',n:'Dalmine v.Verdi',la:45.64971,lo:9.60123,p:'BG',c:'Dalmine',h:'NO2 CO'},
+{i:'1274',n:'Perledo',la:46.01583,lo:9.28642,p:'LC',c:'Perledo',h:'NO2'},
+{i:'1297',n:'Spinadesco v.Battisti',la:45.15047,lo:9.93060,p:'CR',c:'Spinadesco',h:'NO2 PM10 PM25 O3'},
+{i:'1322',n:'Darfo Boario Terme',la:45.87626,lo:10.17884,p:'BS',c:'Darfo Boario Terme',h:'NO2 PM10 PM25'},
+{i:'1374',n:'Monza Parco',la:45.60307,lo:9.27616,p:'MB',c:'Monza',h:'NO2 PM10 O3'},
+{i:'1800',n:'Brescia S.Polo',la:45.50867,lo:10.25637,p:'BS',c:'Brescia',h:'NO2'},
+{i:'1801',n:'Brescia v.Tartaglia',la:45.54265,lo:10.21121,p:'BS',c:'Brescia',h:'PM25 CO'},
+{i:'9157',n:'Erba - Buccinigo',la:45.80439,lo:9.20902,p:'CO',c:'Erba',h:'NO2'},
+];
+
+// === STATO ===
+let audioCtx=null, activeNodes=[], playing=false, selectedStation=null;
+let currentValues={NO2:0,PM10:0,O3:0,PM25:0,CO:0};
+let audioMode='chord', masterVolume=0.5, seqTimer=null;
+let stations=[], stationMarkers=[], selectedMarker=null;
+let glyphPopup=null;
+
+const API='https://www.dati.lombardia.it/resource';
+
+// === MAPPA ===
+const map=L.map('map',{center:[45.47,9.19],zoom:8});
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'© OSM © CARTO',maxZoom:19}).addTo(map);
+map.setMaxBounds(L.latLngBounds([44.67,8.49],[46.64,11.44]).pad(0.3));
+
+// === DATI SIMULATI ===
+function simValues(station){
+  const pr=PROV_PROFILES[station.p]||PROV_PROFILES.MI, vals={};
+  const h=new Date().getHours();
+  const tf=Math.max(h>=7&&h<=10?1.3:1, h>=17&&h<=20?1.2:1);
+  const has=station.h.split(' ');
+  POLLUTANTS.forEach(p=>{
+    if(!has.includes(p.id))return;
+    const norm=Math.max(0.05,Math.min(0.98,(pr[p.id]||0.4)*tf+(Math.random()-0.5)*0.15));
+    vals[p.id]=+(norm*p.max).toFixed(1);
+  });
+  return vals;
+}
+
+// === UI ===
+function buildUI(){
+  const list=document.getElementById('pollutantList');
+  POLLUTANTS.forEach(p=>{
+    const c=document.createElement('div');c.className='pollutant-card';c.id='card-'+p.id;
+    c.onclick=()=>playSolo(p);
+    c.innerHTML=`<div class="p-vowel" style="color:${p.color}">${p.vowel}</div>
+      <div class="p-name">${p.name}</div>
+      <div class="p-mnemonic">${p.mn}</div>
+      <div class="p-value" id="val-${p.id}" style="color:${p.color}">—</div>
+      <div class="p-unit">${p.unit}</div>
+      <div class="p-bar-wrap"><div class="p-bar" id="bar-${p.id}" style="background:${p.color};width:0%"></div></div>`;
+    list.appendChild(c);
+  });
+  const leg=document.getElementById('vowelLegend');
+  POLLUTANTS.forEach(p=>{
+    leg.innerHTML+=`<div class="legend-item"><div class="legend-dot" style="background:${p.color}"></div><strong style="color:${p.color}">"${p.vowel}"</strong> = ${p.name}<span class="legend-mn">${p.mn}</span></div>`;
+  });
+}
+
+function updateUI(v){
+  POLLUTANTS.forEach(p=>{
+    const val=v[p.id]||0,pct=Math.min(100,val/p.max*100);
+    document.getElementById('val-'+p.id).textContent=val>0?val.toFixed(1):'—';
+    document.getElementById('bar-'+p.id).style.width=pct+'%';
+  });
+}
+
+// === GLIFO RADAR (disegna su qualsiasi canvas) ===
+function drawGlyph(cv,v){
+  const ctx=cv.getContext('2d');
+  const W=cv.width,H=cv.height,cx=W/2,cy=H/2+2,R=Math.min(W,H)/2-22,n=POLLUTANTS.length;
+  ctx.clearRect(0,0,W,H);
+  ctx.strokeStyle='rgba(255,255,255,.06)';ctx.lineWidth=1;
+  [.25,.5,.75,1].forEach(f=>{ctx.beginPath();for(let i=0;i<=n;i++){const a=(i/n)*Math.PI*2-Math.PI/2,x=cx+Math.cos(a)*R*f,y=cy+Math.sin(a)*R*f;i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}ctx.closePath();ctx.stroke();});
+  POLLUTANTS.forEach((_,i)=>{const a=(i/n)*Math.PI*2-Math.PI/2;ctx.strokeStyle='rgba(255,255,255,.1)';ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+Math.cos(a)*R,cy+Math.sin(a)*R);ctx.stroke();});
+  const pts=POLLUTANTS.map((p,i)=>{const a=(i/n)*Math.PI*2-Math.PI/2,r=Math.min(1,(v[p.id]||0)/p.max)*R;return{x:cx+Math.cos(a)*r,y:cy+Math.sin(a)*r};});
+  const g=ctx.createRadialGradient(cx,cy,0,cx,cy,R);g.addColorStop(0,'rgba(124,58,237,.5)');g.addColorStop(1,'rgba(6,182,212,.15)');
+  ctx.beginPath();pts.forEach((pt,i)=>i===0?ctx.moveTo(pt.x,pt.y):ctx.lineTo(pt.x,pt.y));ctx.closePath();ctx.fillStyle=g;ctx.fill();ctx.strokeStyle='#a78bfa';ctx.lineWidth=2;ctx.stroke();
+  POLLUTANTS.forEach((p,i)=>{const a=(i/n)*Math.PI*2-Math.PI/2;ctx.fillStyle=p.color;ctx.font='bold 11px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(p.vowel,cx+Math.cos(a)*(R+14),cy+Math.sin(a)*(R+14));});
+  pts.forEach((pt,i)=>{ctx.beginPath();ctx.arc(pt.x,pt.y,3,0,Math.PI*2);ctx.fillStyle=POLLUTANTS[i].color;ctx.fill();});
+}
+
+// === AUDIO — SINTESI FORMANTICA ===
+function initAudio(){
+  if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+  if(audioCtx.state==='suspended')audioCtx.resume();
+}
+function stopAll(){
+  activeNodes.forEach(n=>{try{n.stop();}catch(e){try{n.disconnect();}catch(e2){}}});
+  activeNodes=[];if(seqTimer){clearTimeout(seqTimer);seqTimer=null;}
+}
+
+function scheduleVowel(vowel,freq,amp,t0,dur){
+  const fm=FORMANTS[vowel],fade=Math.min(0.15,dur*0.2);
+  const osc=audioCtx.createOscillator();osc.type='sawtooth';osc.frequency.value=freq;
+  const lfo=audioCtx.createOscillator(),lfoG=audioCtx.createGain();
+  lfo.type='sine';lfo.frequency.value=5.2;lfoG.gain.value=freq*0.008;
+  lfo.connect(lfoG);lfoG.connect(osc.frequency);
+  const jit=audioCtx.createOscillator(),jitG=audioCtx.createGain();
+  jit.type='triangle';jit.frequency.value=12.7;jitG.gain.value=freq*0.003;
+  jit.connect(jitG);jitG.connect(osc.frequency);
+  const t1=audioCtx.createBiquadFilter(),t2=audioCtx.createBiquadFilter();
+  t1.type=t2.type='lowpass';t1.frequency.value=t2.frequency.value=3000;t1.Q.value=t2.Q.value=0.5;
+  osc.connect(t1);t1.connect(t2);
+  const nLen=audioCtx.sampleRate*2,nBuf=audioCtx.createBuffer(1,nLen,audioCtx.sampleRate),nd=nBuf.getChannelData(0);
+  for(let i=0;i<nLen;i++)nd[i]=Math.random()*2-1;
+  const noise=audioCtx.createBufferSource();noise.buffer=nBuf;noise.loop=true;
+  const nHP=audioCtx.createBiquadFilter();nHP.type='highpass';nHP.frequency.value=1500;nHP.Q.value=0.5;
+  const nG=audioCtx.createGain();nG.gain.value=0.04;
+  noise.connect(nHP);nHP.connect(nG);
+  const env=audioCtx.createGain(),vol=amp*masterVolume*0.45;
+  env.gain.setValueAtTime(0,t0);
+  env.gain.linearRampToValueAtTime(vol,t0+fade);
+  env.gain.setValueAtTime(vol,t0+dur-fade);
+  env.gain.linearRampToValueAtTime(0,t0+dur);
+  env.connect(audioCtx.destination);
+  const VOWEL_GAINS={
+    A:[1.0,0.70,0.25,0.12,0.06],
+    E:[1.0,0.75,0.30,0.12,0.06],
+    I:[1.0,0.85,0.40,0.15,0.08],
+    O:[1.0,0.65,0.15,0.06,0.03],
+    U:[1.0,0.55,0.07,0.02,0.01],
+  };
+  const fAmps=VOWEL_GAINS[vowel]||VOWEL_GAINS.A;
+  fm.forEach(({f,bw},idx)=>{
+    const q=f/bw;
+    const bp=audioCtx.createBiquadFilter();bp.type='bandpass';bp.frequency.value=f;bp.Q.value=q;
+    const g=audioCtx.createGain();g.gain.value=fAmps[idx]||0.1;
+    t2.connect(bp);bp.connect(g);g.connect(env);
+    const bpN=audioCtx.createBiquadFilter();bpN.type='bandpass';bpN.frequency.value=f;bpN.Q.value=q*0.7;
+    const gN=audioCtx.createGain();gN.gain.value=fAmps[idx]*0.5;
+    nG.connect(bpN);bpN.connect(gN);gN.connect(env);
+  });
+  osc.start(t0);osc.stop(t0+dur+.05);
+  lfo.start(t0);lfo.stop(t0+dur+.05);
+  jit.start(t0);jit.stop(t0+dur+.05);
+  noise.start(t0);noise.stop(t0+dur+.05);
+  activeNodes.push(osc,lfo,jit,noise);
+}
+
+function playEnd(ms){
+  seqTimer=setTimeout(()=>{
+    playing=false;
+    document.getElementById('playBtn').classList.remove('playing');
+    document.getElementById('playIcon').textContent='▶';
+    document.getElementById('playText').textContent='Ascolta';
+    document.querySelectorAll('.pollutant-card').forEach(c=>c.classList.remove('active'));
+  },ms);
+}
+
+function startChord(v){
+  stopAll();
+  const sorted=POLLUTANTS.map(p=>({p,norm:Math.min(1,(v[p.id]||0)/p.max)})).filter(x=>x.norm>=.01).sort((a,b)=>b.norm-a.norm);
+  if(!sorted.length)return;
+  const now=audioCtx.currentTime;
+  sorted.forEach(({p,norm})=>scheduleVowel(p.vowel,p.freq*Math.pow(2,norm*.5),norm,now,5));
+  sorted.forEach(({p})=>document.getElementById('card-'+p.id)?.classList.add('active'));
+  playEnd(5200);
+}
+
+function startSeq(v){
+  stopAll();
+  const sorted=POLLUTANTS.map(p=>({p,norm:Math.min(1,(v[p.id]||0)/p.max)})).filter(x=>x.norm>=.01).sort((a,b)=>b.norm-a.norm);
+  if(!sorted.length)return;
+  const total=sorted.reduce((s,x)=>s+x.norm,0);
+  const base=audioCtx.currentTime;let cur=base;
+  sorted.forEach(({p,norm})=>{
+    const slot=norm/total*5;
+    scheduleVowel(p.vowel,p.freq*Math.pow(2,norm*.5),norm,cur,slot);
+    const st=(cur-base)*1000,en=st+slot*1000;
+    setTimeout(()=>{document.querySelectorAll('.pollutant-card').forEach(c=>c.classList.remove('active'));document.getElementById('card-'+p.id)?.classList.add('active');},Math.max(0,st));
+    setTimeout(()=>document.getElementById('card-'+p.id)?.classList.remove('active'),Math.max(0,en));
+    cur+=slot;
+  });
+  playEnd(5200);
+}
+
+function toggleSound(){
+  initAudio();playing=!playing;
+  const btn=document.getElementById('playBtn'),ico=document.getElementById('playIcon'),txt=document.getElementById('playText');
+  if(playing){
+    btn.classList.add('playing');ico.textContent='■';txt.textContent='Stop';
+    if(selectedStation)(audioMode==='chord'?startChord:startSeq)(currentValues);
+    else{const d={};POLLUTANTS.forEach(p=>d[p.id]=Math.random()*p.max*.7);(audioMode==='chord'?startChord:startSeq)(d);}
+  }else{btn.classList.remove('playing');ico.textContent='▶';txt.textContent='Ascolta';stopAll();document.querySelectorAll('.pollutant-card').forEach(c=>c.classList.remove('active'));}
+}
+function setMode(m){audioMode=m;document.getElementById('modeChord').classList.toggle('active',m==='chord');document.getElementById('modeSeq').classList.toggle('active',m==='seq');if(playing)(m==='chord'?startChord:startSeq)(currentValues);}
+function setVolume(v){masterVolume=parseFloat(v);}
+
+function playSolo(p){
+  initAudio();stopAll();
+  const val=currentValues[p.id]||0;
+  const norm=Math.min(1,Math.max(0.15,val/p.max));
+  const freq=p.freq*Math.pow(2,norm*0.5);
+  scheduleVowel(p.vowel,freq,norm,audioCtx.currentTime,2);
+  document.querySelectorAll('.pollutant-card').forEach(c=>c.classList.remove('solo'));
+  document.getElementById('card-'+p.id)?.classList.add('solo');
+  setTimeout(()=>document.getElementById('card-'+p.id)?.classList.remove('solo'),2100);
+}
+
+// === MARKER ===
+function markerColor(v){let mx=0;POLLUTANTS.forEach(p=>{const r=(v[p.id]||0)/p.max;if(r>mx)mx=r;});return mx<.5?'#22c55e':mx<.75?'#f59e0b':'#ef4444';}
+
+function placeMarkers(){
+  stationMarkers.forEach(({marker})=>map.removeLayer(marker));stationMarkers=[];
+  stations.forEach(s=>{
+    const v=s._live||s._sim||{};
+    const ic=L.divIcon({html:'<div class="custom-marker" style="background:'+( Object.keys(v).length?markerColor(v):'#64748b')+'"></div>',iconSize:[12,12],iconAnchor:[6,6],className:''});
+    const mk=L.marker([s.la,s.lo],{icon:ic}).addTo(map).on('click',()=>selectStation(s,mk));
+    mk.bindTooltip(s.n,{direction:'top',offset:[0,-8],opacity:.9,className:''});
+    stationMarkers.push({marker:mk,station:s});
+  });
+}
+
+function updateMarker(s){
+  const e=stationMarkers.find(m=>m.station.i===s.i);
+  if(!e||e.marker===selectedMarker)return;
+  const v=s._live||s._sim||{};
+  e.marker.setIcon(L.divIcon({html:'<div class="custom-marker" style="background:'+(Object.keys(v).length?markerColor(v):'#64748b')+'"></div>',iconSize:[12,12],iconAnchor:[6,6],className:''}));
+}
+
+// === POPUP CON GLIFO ALLA POSIZIONE DEL CLICK ===
+function showGlyphPopup(s,mk,v){
+  if(glyphPopup)map.closePopup(glyphPopup);
+  let rows='';
+  POLLUTANTS.forEach(p=>{
+    const val=v[p.id]||0;
+    const pct=Math.min(100,val/p.max*100);
+    rows+=`<div class="popup-row" onclick="playSolo(POLLUTANTS.find(x=>x.id==='${p.id}'))">
+      <div class="popup-dot" style="background:${p.color}"></div>
+      <div class="popup-vowel" style="color:${p.color}">${p.vowel}</div>
+      <span>${p.name}</span>
+      <span class="popup-val" style="color:${p.color}">${val>0?val.toFixed(1):'—'}</span>
+    </div>`;
+  });
+  const html=`<div class="popup-title">${s.n}</div>
+    <div class="popup-canvas-wrap"><canvas id="popupGlyph" width="130" height="130"></canvas></div>
+    <div class="popup-vals">${rows}</div>`;
+  glyphPopup=L.popup({className:'glyph-popup',closeButton:true,maxWidth:220,offset:[0,-10]})
+    .setLatLng([s.la,s.lo]).setContent(html).openOn(map);
+  // Disegna il glifo dopo che il popup è nel DOM
+  setTimeout(()=>{
+    const cv=document.getElementById('popupGlyph');
+    if(cv)drawGlyph(cv,v);
+  },50);
+}
+
+function selectStation(s,mk){
+  selectedStation=s;
+  if(selectedMarker){const pr=stationMarkers.find(m=>m.marker===selectedMarker);if(pr)updateMarker(pr.station);}
+  mk.setIcon(L.divIcon({html:'<div class="selected-marker"></div>',iconSize:[16,16],iconAnchor:[8,8],className:''}));
+  selectedMarker=mk;
+  document.getElementById('stationInfo').innerHTML='<div class="station-name">'+s.n+'</div><div class="station-coords">'+s.la.toFixed(4)+'°N, '+s.lo.toFixed(4)+'°E — '+s.p+' · '+s.c+'</div>';
+  currentValues=s._live&&Object.keys(s._live).length?{...s._live}:{...s._sim};
+  const src=s._live&&Object.keys(s._live).length?'Dati reali':'Dati simulati';
+  setStatus('ok',src+' · '+s.p+' · '+s.c);
+  updateUI(currentValues);
+  // Popup con glifo alla posizione della stazione
+  showGlyphPopup(s,mk,currentValues);
+  // Auto-play contestuale alla selezione
+  initAudio();
+  playing=true;
+  document.getElementById('playBtn').classList.add('playing');
+  document.getElementById('playIcon').textContent='■';
+  document.getElementById('playText').textContent='Stop';
+  (audioMode==='chord'?startChord:startSeq)(currentValues);
+}
+
+function setStatus(t,m){
+  document.getElementById('statusDot').className='status-dot'+(t==='ok'?'':' '+t);
+  document.getElementById('statusText').textContent=m;
+}
+
+// === API ARPA — CARICAMENTO PROGRESSIVO IN BACKGROUND ===
+function getYesterday(){const d=new Date();d.setDate(d.getDate()-1);return d.toISOString().split('T')[0]+'T00:00:00.000';}
+
+async function fetchLiveData(){
+  setStatus('loading','Collegamento ARPA...');
+  const ctrl=new AbortController();const t=setTimeout(()=>ctrl.abort(),8000);
+  let sMap={};
+  try{
+    const types=POLLUTANTS.map(p=>"'"+p.sn+"'").join(',');
+    const url=API+"/ib47-atvt.json?$where=storico='N' AND datastop IS NULL AND nometiposensore in("+types+")&$limit=5000&$select=idsensore,nometiposensore,idstazione";
+    const r=await fetch(url,{signal:ctrl.signal});
+    clearTimeout(t);if(!r.ok)throw new Error(r.status);
+    const d=await r.json();if(!d||!d.length)throw new Error('empty');
+    d.forEach(row=>{const pl=POLLUTANTS.find(p=>p.sn===row.nometiposensore);if(pl){sMap[row.idsensore]={sid:row.idstazione,pid:pl.id};}});
+  }catch(e){clearTimeout(t);setStatus('ok',stations.length+' stazioni · dati simulati');return;}
+
+  const ids=Object.keys(sMap);let updated=0;
+  setStatus('loading',ids.length+' sensori · scarico dati...');
+
+  for(let i=0;i<ids.length;i+=80){
+    const batch=ids.slice(i,i+80);
+    const c2=new AbortController();const t2=setTimeout(()=>c2.abort(),10000);
+    try{
+      const q=batch.map(x=>"'"+x+"'").join(',');
+      const url2=API+"/nicp-bhqi.json?$select=idsensore,valore,data&$where=idsensore in("+q+") AND data>'"+getYesterday()+"'&$order=data DESC&$limit=5000";
+      const r=await fetch(url2,{signal:c2.signal});
+      clearTimeout(t2);if(!r.ok)continue;
+      const d=await r.json();
+      const latest={};
+      d.forEach(row=>{if(!latest[row.idsensore]){const v=parseFloat(row.valore);if(!isNaN(v)&&v>=0)latest[row.idsensore]=v;}});
+
+      const touched=new Set();
+      for(const[sid,val] of Object.entries(latest)){
+        const m=sMap[sid];if(!m)continue;
+        const st=stations.find(s=>s.i===m.sid);if(!st)continue;
+        if(!st._live)st._live={};
+        st._live[m.pid]=val;
+        touched.add(st.i);updated++;
+      }
+      touched.forEach(id=>{const st=stations.find(s=>s.i===id);if(st)updateMarker(st);});
+      if(selectedStation&&touched.has(selectedStation.i)&&selectedStation._live){
+        currentValues={...selectedStation._live};updateUI(currentValues);
+      }
+      setStatus('loading',updated+' valori reali caricati...');
+    }catch(e){clearTimeout(t2);}
+  }
+  setStatus('ok',updated>0?(stations.length+' stazioni · '+updated+' valori reali'):(stations.length+' stazioni · dati simulati'));
+}
+
+// === VALUTAZIONE — TEST PERCETTIVO CON MATRICE DI CONFUSIONE ===
+const EVAL_TRIALS=25;
+let evalState=null; // {trials:[], current:0, currentPollutant:null, waiting:false}
+
+function openEval(){
+  const el=document.createElement('div');el.className='eval-overlay';el.id='evalOverlay';
+  el.innerHTML=`<div class="eval-box" id="evalBox">
+    <h2>🎓 Valutazione percettiva</h2>
+    <p>Questo test misura quanto efficacemente le vocali sintetizzate comunicano i diversi inquinanti.
+    Ascolterai ${EVAL_TRIALS} suoni e dovrai identificare quale inquinante rappresentano.<br><br>
+    Ogni inquinante è associato a una vocale con pitch proporzionale alla concentrazione:<br>
+    <strong style="color:#f87171">A</strong>=NO₂ · <strong style="color:#fb923c">E</strong>=PM10 · <strong style="color:#38bdf8">I</strong>=PM2.5 · <strong style="color:#4ade80">U</strong>=CO · <strong style="color:#a78bfa">O</strong>=O₃</p>
+    <div style="display:flex;gap:.5rem;justify-content:center">
+      <button class="eval-start-btn" onclick="startEval()">Inizia il test</button>
+      <button class="eval-close-btn" onclick="closeEval()">Annulla</button>
+    </div>
+  </div>`;
+  document.body.appendChild(el);
+}
+
+function closeEval(){
+  const el=document.getElementById('evalOverlay');
+  if(el)el.remove();
+  evalState=null;stopAll();
+}
+
+function startEval(){
+  initAudio();
+  evalState={trials:[],current:0,currentPollutant:null,waiting:false};
+  nextEvalTrial();
+}
+
+function nextEvalTrial(){
+  if(evalState.current>=EVAL_TRIALS){showEvalResults();return;}
+  // Scegli inquinante casuale e valori realistici
+  const p=POLLUTANTS[Math.floor(Math.random()*POLLUTANTS.length)];
+  const norm=0.3+Math.random()*0.6; // tra 30% e 90% del max
+  const val=norm*p.max;
+  evalState.currentPollutant=p;
+  evalState.currentNorm=norm;
+  evalState.currentVal=val;
+  evalState.waiting=true;
+
+  const box=document.getElementById('evalBox');
+  let choices='';
+  POLLUTANTS.forEach(pp=>{
+    choices+=`<div class="eval-choice" id="ec-${pp.id}" onclick="evalAnswer('${pp.id}')">
+      <span class="ev-vowel" style="color:${pp.color}">${pp.vowel}</span>
+      <span class="ev-name">${pp.name}</span>
+    </div>`;
+  });
+  box.innerHTML=`<h2>🎓 Trial ${evalState.current+1}/${EVAL_TRIALS}</h2>
+    <div class="eval-progress">Corrette: ${evalState.trials.filter(t=>t.correct).length}/${evalState.current}</div>
+    <p style="text-align:center;margin-bottom:.8rem">Ascolta il suono e identifica l'inquinante:</p>
+    <div style="text-align:center;margin-bottom:1rem">
+      <button class="eval-replay" onclick="evalPlaySound()">🔊 Riascolta</button>
+    </div>
+    <div id="evalFeedback"></div>
+    <div class="eval-choices">${choices}</div>`;
+  // Play automatico
+  evalPlaySound();
+}
+
+function evalPlaySound(){
+  if(!evalState||!evalState.currentPollutant)return;
+  stopAll();
+  const p=evalState.currentPollutant, norm=evalState.currentNorm;
+  const freq=p.freq*Math.pow(2,norm*0.5);
+  scheduleVowel(p.vowel,freq,norm,audioCtx.currentTime,2.5);
+}
+
+function evalAnswer(chosenId){
+  if(!evalState||!evalState.waiting)return;
+  evalState.waiting=false;
+  const correct=chosenId===evalState.currentPollutant.id;
+  const chosen=POLLUTANTS.find(p=>p.id===chosenId);
+
+  evalState.trials.push({
+    target:evalState.currentPollutant.id,
+    targetVowel:evalState.currentPollutant.vowel,
+    chosen:chosenId,
+    chosenVowel:chosen.vowel,
+    correct:correct
+  });
+  evalState.current++;
+
+  // Feedback visivo
+  document.getElementById('ec-'+chosenId).classList.add(correct?'correct':'wrong');
+  if(!correct)document.getElementById('ec-'+evalState.currentPollutant.id).classList.add('correct');
+  const fb=document.getElementById('evalFeedback');
+  if(correct){
+    fb.innerHTML='<div class="eval-feedback ok">✓ Corretto! Era '+evalState.currentPollutant.vowel+' ('+evalState.currentPollutant.name+')</div>';
+  }else{
+    fb.innerHTML='<div class="eval-feedback ko">✗ Era '+evalState.currentPollutant.vowel+' ('+evalState.currentPollutant.name+'), hai scelto '+chosen.vowel+' ('+chosen.name+')</div>';
+  }
+  // Disabilita tutti i bottoni
+  POLLUTANTS.forEach(p=>{document.getElementById('ec-'+p.id).style.pointerEvents='none';});
+  setTimeout(()=>nextEvalTrial(),1800);
+}
+
+function showEvalResults(){
+  const trials=evalState.trials;
+  const totalCorrect=trials.filter(t=>t.correct).length;
+  const accuracy=((totalCorrect/trials.length)*100).toFixed(1);
+
+  // Matrice di confusione
+  const vowels=POLLUTANTS.map(p=>p.vowel);
+  const ids=POLLUTANTS.map(p=>p.id);
+  const matrix={};
+  ids.forEach(t=>{matrix[t]={};ids.forEach(c=>matrix[t][c]=0);});
+  trials.forEach(t=>matrix[t.target][t.chosen]++);
+
+  // Per-vocale accuracy
+  const perVowel={};
+  ids.forEach(id=>{
+    const tot=trials.filter(t=>t.target===id).length;
+    const cor=trials.filter(t=>t.target===id&&t.correct).length;
+    perVowel[id]={tot,cor,pct:tot>0?((cor/tot)*100).toFixed(0):'—'};
+  });
+
+  // Render matrice
+  let matrixHtml='<table class="conf-matrix"><tr><th></th>';
+  POLLUTANTS.forEach(p=>matrixHtml+='<th style="color:'+p.color+'">'+p.vowel+'<br><span style="font-size:.6rem;font-weight:400">'+p.name+'</span></th>');
+  matrixHtml+='<th>Acc.</th></tr>';
+  POLLUTANTS.forEach(pt=>{
+    matrixHtml+='<tr><th style="color:'+pt.color+'">'+pt.vowel+' '+pt.name+'</th>';
+    POLLUTANTS.forEach(pc=>{
+      const v=matrix[pt.id][pc.id];
+      const cls=pt.id===pc.id?'diag':(v>0?'err':'off');
+      matrixHtml+='<td class="'+cls+'">'+v+'</td>';
+    });
+    matrixHtml+='<td style="font-weight:700">'+perVowel[pt.id].pct+'%</td></tr>';
+  });
+  matrixHtml+='</table>';
+
+  const box=document.getElementById('evalBox');
+  box.innerHTML=`<h2>📊 Risultati</h2>
+    <div class="eval-stats">
+      <div class="eval-stat"><div class="val">${accuracy}%</div><div class="lbl">Accuratezza</div></div>
+      <div class="eval-stat"><div class="val">${totalCorrect}/${trials.length}</div><div class="lbl">Risposte corrette</div></div>
+    </div>
+    <div class="section-title" style="margin-top:1rem">Matrice di confusione</div>
+    <p style="font-size:.72rem;color:var(--muted);margin-bottom:.5rem">Righe = suono riprodotto, Colonne = risposta data. La diagonale indica risposte corrette.</p>
+    ${matrixHtml}
+    <div style="display:flex;gap:.5rem;justify-content:center;margin-top:1rem">
+      <button class="eval-start-btn" onclick="startEval()">Ripeti il test</button>
+      <button class="eval-close-btn" onclick="closeEval()">Chiudi</button>
+    </div>`;
+}
+
+// === INIT ===
+buildUI();
+
+stations=S.map(s=>({...s,_sim:simValues(s)}));
+placeMarkers();
+setStatus('ok',stations.length+' stazioni ARPA · caricamento dati reali...');
+
+fetchLiveData();
+
+setInterval(()=>{
+  stations.forEach(s=>{if(!s._live||!Object.keys(s._live).length)s._sim=simValues(s);});
+  stationMarkers.forEach(({station})=>updateMarker(station));
+  if(selectedStation&&(!selectedStation._live||!Object.keys(selectedStation._live).length)){
+    currentValues={...selectedStation._sim};updateUI(currentValues);
+  }
+  fetchLiveData();
+},300000);
+</script>
+</body>
+</html>
