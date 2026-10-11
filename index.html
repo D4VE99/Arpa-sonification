@@ -463,11 +463,10 @@ function updateMarker(s){
 
 // === POPUP CON GLIFO ALLA POSIZIONE DEL CLICK ===
 function showGlyphPopup(s,mk,v){
-  if(glyphPopup)map.closePopup(glyphPopup);
+  if(glyphPopup){map.closePopup(glyphPopup);glyphPopup=null;}
   let rows='';
   POLLUTANTS.forEach(p=>{
     const val=v[p.id]||0;
-    const pct=Math.min(100,val/p.max*100);
     rows+=`<div class="popup-row" onclick="playSolo(POLLUTANTS.find(x=>x.id==='${p.id}'))">
       <div class="popup-dot" style="background:${p.color}"></div>
       <div class="popup-vowel" style="color:${p.color}">${p.vowel}</div>
@@ -476,15 +475,17 @@ function showGlyphPopup(s,mk,v){
     </div>`;
   });
   const html=`<div class="popup-title">${s.n}</div>
-    <div class="popup-canvas-wrap"><canvas id="popupGlyph" width="130" height="130"></canvas></div>
+    <div class="popup-canvas-wrap"><canvas class="popupGlyphCv" width="130" height="130"></canvas></div>
     <div class="popup-vals">${rows}</div>`;
-  glyphPopup=L.popup({className:'glyph-popup',closeButton:true,maxWidth:220,offset:[0,-10]})
-    .setLatLng([s.la,s.lo]).setContent(html).openOn(map);
-  // Disegna il glifo dopo che il popup è nel DOM
-  setTimeout(()=>{
-    const cv=document.getElementById('popupGlyph');
-    if(cv)drawGlyph(cv,v);
-  },50);
+  const popup=L.popup({className:'glyph-popup',closeButton:true,maxWidth:220,offset:[0,-10]})
+    .setLatLng([s.la,s.lo]).setContent(html);
+  glyphPopup=popup;
+  // Disegna il glifo quando il popup è effettivamente nel DOM
+  popup.on('add',function(){
+    const el=popup.getElement();
+    if(el){const cv=el.querySelector('.popupGlyphCv');if(cv)drawGlyph(cv,v);}
+  });
+  popup.openOn(map);
 }
 
 function selectStation(s,mk){
