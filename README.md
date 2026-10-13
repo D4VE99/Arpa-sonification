@@ -6,7 +6,7 @@ Developed as a final project for the **MIDI Programming** course (Laurea Magistr
 
 ## Live Demo
 
-👉 **[Try it here](#)** *(insert your GitHub Pages link)*
+👉 **[[Try it here](https://d4ve99.github.io/Arpa-sonification/)](#)** *(insert your GitHub Pages link)*
 
 ## Concept
 
