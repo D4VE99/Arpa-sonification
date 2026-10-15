@@ -262,7 +262,7 @@ const API='https://www.dati.lombardia.it/resource';
 
 // === MAPPA ===
 const map=L.map('map',{center:[45.47,9.19],zoom:8});
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{attribution:'© OSM © CARTO',maxZoom:19}).addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png',{attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',maxZoom:19}).addTo(map);
 map.setMaxBounds(L.latLngBounds([44.67,8.49],[46.64,11.44]).pad(0.3));
 
 // === DATI SIMULATI ===
